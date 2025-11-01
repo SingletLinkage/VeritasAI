@@ -32,7 +32,7 @@ A comprehensive AI-powered fact-checking system that analyzes **multimodal conte
 - **Claim Extraction**: AI-powered extraction of verifiable claims
 - **Claim Fusion**: Intelligent merging of redundant claims
 - **Evidence Retrieval**: Hybrid search combining local vector store (FAISS) and real web search
-- **LLM Reranking**: Advanced evidence ranking using Gemini 2.5 Flash
+- **LLM Reranking**: Advanced evidence ranking using Gemini 2.0 Flash Lite
 
 ### 🎤 **Audio Analysis Pipeline**
 - **Speech-to-Text**: Automatic transcription using OpenAI Whisper

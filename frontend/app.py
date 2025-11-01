@@ -770,6 +770,10 @@ def main():
                         if result.get('analysis'):
                             analysis = result['analysis']
                             
+                            # Show verdict if available
+                            if analysis.get('verdict'):
+                                render_verdict_card(analysis['verdict'])
+                            
                             # Create a result dict compatible with render_text_analysis
                             text_result = {
                                 'source_language': analysis.get('source_language'),

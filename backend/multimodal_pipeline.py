@@ -4,7 +4,7 @@ Combines text_pipeline.py and image_pipeline.py for comprehensive fact-checking
 """
 from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
-from typing import TypedDict, List, Optional
+from typing import TypedDict, List, Optional, Dict, Any
 from dotenv import load_dotenv
 
 # Import from text pipeline
@@ -22,7 +22,8 @@ from backend.text_pipeline import (
     skip_translation,
     extract_claim,
     fusion_agent as text_fusion_agent,
-    retrieval_tool
+    retrieval_tool,
+    generate_verdict as text_generate_verdict
 )
 from backend.image_pipeline import (
     captioning_agent,
@@ -57,7 +58,9 @@ class MultimodalState(TypedDict):
     
     # Fusion state
     fused_claims: Optional[FusedClaimList]
+    evidence_results: Optional[List[Dict[str, Any]]]  # Evidence retrieval results
     evidence_links: Optional[List[str]]
+    verdict: Optional[Any]  # Text verdict from text pipeline
     multimodal_verdict: Optional[VerdictResult]
 
 
@@ -176,6 +179,8 @@ graph.add_node("DetectLanguage", detect_language)
 graph.add_node("Translation", translation_agent)
 graph.add_node("SkipTranslation", skip_translation)
 graph.add_node("ClaimExtraction", extract_claim)
+graph.add_node("TextFusion", text_fusion_agent)  # Add fusion node
+graph.add_node("RetrieveEvidence", retrieval_tool)  # Add retrieval node
 
 # Image processing nodes
 graph.add_node("ImageCaptioning", captioning_agent)
@@ -205,14 +210,16 @@ graph.add_conditional_edges(
 )
 graph.add_edge("Translation", "ClaimExtraction")
 graph.add_edge("SkipTranslation", "ClaimExtraction")
+graph.add_edge("ClaimExtraction", "TextFusion")  # Add fusion after claim extraction
+graph.add_edge("TextFusion", "RetrieveEvidence")  # Add retrieval after fusion
 
-# After claim extraction, check for image
+# After evidence retrieval, check for image
 graph.add_conditional_edges(
-    "ClaimExtraction",
+    "RetrieveEvidence",
     has_image,
     {
         "process_image": "ImageCaptioning",
-        "skip_image": "SkipImage"
+        "skip_image": "MultimodalFusion"  # Go directly to fusion if no image
     }
 )
 
@@ -220,9 +227,6 @@ graph.add_conditional_edges(
 graph.add_edge("ImageCaptioning", "DeepfakeDetection")
 graph.add_edge("DeepfakeDetection", "ConsolidateEvidence")
 graph.add_edge("ConsolidateEvidence", "MultimodalFusion")
-
-# Skip image path
-graph.add_edge("SkipImage", "MultimodalFusion")
 
 # Final
 graph.add_edge("MultimodalFusion", END)
