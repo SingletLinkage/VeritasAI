@@ -1,234 +1,247 @@
 """
-Web Scraper to Populate Vector Store with Fact-Checking Data
-Scrapes from reliable fact-checking websites
+Vector Store Population Script
+Loads scraped fact-checking data from JSON files and populates the vector store
 """
 
 from typing import List, Dict
 import sys
 from pathlib import Path
+import json
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import requests
-from bs4 import BeautifulSoup
 from langchain.docstore.document import Document
 from backend.vector_store import get_vector_store_manager
 from datetime import datetime
-import time
 
 
-# Reliable fact-checking sources
-FACT_CHECK_SOURCES = {
-    "snopes": {
-        "url": "https://www.snopes.com",
-        "rating_selector": ".rating",
-        "claim_selector": ".claim-text"
-    },
-    "factcheck": {
-        "url": "https://www.factcheck.org",
-        "article_selector": ".article"
-    },
-    "politifact": {
-        "url": "https://www.politifact.com",
-        "fact_selector": ".m-statement__quote"
-    }
-}
-
-
-def scrape_mock_data() -> List[Document]:
-    """
-    Generate mock scraped data for testing
-    In production, replace with actual web scraping
-    """
+class VectorStorePopulator:
+    """Populates vector store with scraped fact-checking data"""
     
-    mock_articles = [
-        {
-            "content": "Analysis of claim: COVID-19 vaccines are safe and effective. Multiple large-scale clinical trials involving tens of thousands of participants have demonstrated that authorized COVID-19 vaccines are both safe and highly effective at preventing severe illness, hospitalization, and death from COVID-19. The benefits far outweigh the risks for the vast majority of people.",
-            "metadata": {
-                "source_url": "https://www.cdc.gov/coronavirus/2019-ncov/vaccines/safety/safety-of-vaccines.html",
-                "source_name": "CDC - Vaccine Safety",
-                "verdict": "TRUE",
-                "category": "health",
-                "date": "2023-09-15",
-                "author": "CDC"
-            }
-        },
-        {
-            "content": "Fact check: Eating garlic prevents COVID-19. FALSE - While garlic has some antimicrobial properties, there is no evidence that eating garlic prevents COVID-19 infection. The World Health Organization has confirmed this is a myth.",
-            "metadata": {
-                "source_url": "https://www.who.int/emergencies/diseases/novel-coronavirus-2019/advice-for-public/myth-busters",
-                "source_name": "WHO Myth Busters",
-                "verdict": "FALSE",
-                "category": "health",
-                "date": "2020-05-20"
-            }
-        },
-        {
-            "content": "Claim verification: The moon landing in 1969 was real. TRUE - Overwhelming evidence confirms that NASA successfully landed astronauts on the moon in 1969. This includes moon rocks brought back, photographs, video footage, retroreflectors left on the moon that scientists use today, and corroboration from multiple countries including the Soviet Union.",
-            "metadata": {
-                "source_url": "https://www.nasa.gov/mission_pages/apollo/apollo11.html",
-                "source_name": "NASA Apollo 11 Mission",
-                "verdict": "TRUE",
-                "category": "history",
-                "date": "2023-07-20"
-            }
-        },
-        {
-            "content": "Fact check: Drinking bleach cures diseases. FALSE and DANGEROUS - Drinking bleach or any disinfectant is extremely dangerous and can cause severe harm or death. This has been repeatedly debunked by medical professionals and health organizations worldwide. Never ingest cleaning products.",
-            "metadata": {
-                "source_url": "https://www.poison.org/articles/bleach",
-                "source_name": "Poison Control",
-                "verdict": "FALSE",
-                "category": "health",
-                "date": "2020-04-25"
-            }
-        },
-        {
-            "content": "Verification: Earth is approximately 4.54 billion years old. TRUE - Scientific evidence from radiometric dating of meteorites, moon rocks, and Earth rocks consistently shows the Earth formed about 4.54 billion years ago. This is supported by multiple independent dating methods.",
-            "metadata": {
-                "source_url": "https://www.usgs.gov/faqs/how-old-earth",
-                "source_name": "USGS",
-                "verdict": "TRUE",
-                "category": "science",
-                "date": "2023-03-10"
-            }
-        },
-        {
-            "content": "Analysis: Eating carrots dramatically improves night vision. MISLEADING - While carrots contain vitamin A which is important for eye health, eating carrots won't give you superhuman night vision. This myth originated from British WWII propaganda to hide the development of radar.",
-            "metadata": {
-                "source_url": "https://www.smithsonianmag.com/arts-culture/a-wwii-propaganda-campaign-popularized-the-myth-that-carrots-help-you-see-in-the-dark-28812484/",
-                "source_name": "Smithsonian Magazine",
-                "verdict": "MISLEADING",
-                "category": "health",
-                "date": "2022-11-08"
-            }
-        },
-        {
-            "content": "Fact check: Water has memory and can be influenced by thoughts. FALSE - There is no scientific evidence that water has memory or can be influenced by human thoughts or emotions. Claims about 'water memory' have been thoroughly debunked by the scientific community.",
-            "metadata": {
-                "source_url": "https://sciencebasedmedicine.org/water-memory/",
-                "source_name": "Science-Based Medicine",
-                "verdict": "FALSE",
-                "category": "science",
-                "date": "2021-06-15"
-            }
-        },
-        {
-            "content": "Verification: Lightning never strikes the same place twice. FALSE - Lightning can and does strike the same place multiple times. Tall structures like the Empire State Building are struck by lightning dozens of times per year. The claim is a common meteorological misconception.",
-            "metadata": {
-                "source_url": "https://www.weather.gov/safety/lightning-myths",
-                "source_name": "NOAA Weather Service",
-                "verdict": "FALSE",
-                "category": "science",
-                "date": "2023-05-22"
-            }
-        },
-        {
-            "content": "Analysis: Hydroxychloroquine is an effective treatment for COVID-19. FALSE - Large-scale clinical trials have shown that hydroxychloroquine is not effective at treating or preventing COVID-19 and may cause serious side effects. The FDA revoked its emergency use authorization.",
-            "metadata": {
-                "source_url": "https://www.fda.gov/news-events/press-announcements/coronavirus-covid-19-update-fda-revokes-emergency-use-authorization-chloroquine-and",
-                "source_name": "FDA",
-                "verdict": "FALSE",
-                "category": "health",
-                "date": "2020-06-15"
-            }
-        },
-        {
-            "content": "Fact check: Shaving makes hair grow back thicker. FALSE - Shaving does not change the thickness, color, or rate of hair growth. This is a persistent myth. Hair may feel coarser when growing back because the tip is blunt from being cut, but it's not actually thicker.",
-            "metadata": {
-                "source_url": "https://www.mayoclinic.org/healthy-lifestyle/adult-health/expert-answers/hair-removal/faq-20058427",
-                "source_name": "Mayo Clinic",
-                "verdict": "FALSE",
-                "category": "health",
-                "date": "2022-08-30"
-            }
+    def __init__(self):
+        self.data_dir = Path(__file__).parent / "web_scrappers"
+        self.json_files = {
+            "who_data.json": "WHO (World Health Organization)",
+            "factcheck_data.json": "FactCheck.org",
+            "pti_data.json": "PTI Fact Check",
+            "rbi_data.json": "Reserve Bank of India"
         }
-    ]
     
-    documents = [
-        Document(
-            page_content=article["content"],
-            metadata=article["metadata"]
-        )
-        for article in mock_articles
-    ]
+    def load_json_file(self, filepath: Path) -> List[Dict]:
+        """Load data from a JSON file"""
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return data
+        except FileNotFoundError:
+            print(f"⚠️  File not found: {filepath}")
+            return []
+        except json.JSONDecodeError as e:
+            print(f"⚠️  JSON decode error in {filepath}: {e}")
+            return []
+        except Exception as e:
+            print(f"⚠️  Error loading {filepath}: {e}")
+            return []
     
-    return documents
-
-
-def scrape_and_populate(use_mock: bool = True):
-    """
-    Scrape fact-checking websites and populate vector store
+    def convert_to_documents(self, data: List[Dict], source_name: str) -> List[Document]:
+        """Convert JSON data to LangChain Documents"""
+        documents = []
+        
+        for item in data:
+            try:
+                # Extract content
+                content = item.get('content', '').strip()
+                if not content:
+                    continue
+                
+                # Extract metadata
+                metadata = item.get('metadata', {})
+                
+                # Ensure all required fields exist
+                if not metadata.get('source_name'):
+                    metadata['source_name'] = source_name
+                
+                if not metadata.get('source_url'):
+                    metadata['source_url'] = 'Unknown'
+                
+                # Normalize verdict to uppercase for consistency
+                if 'verdict' in metadata:
+                    verdict = metadata['verdict']
+                    if isinstance(verdict, str):
+                        metadata['verdict'] = verdict.upper()
+                
+                # Create document
+                doc = Document(
+                    page_content=content,
+                    metadata=metadata
+                )
+                documents.append(doc)
+                
+            except Exception as e:
+                print(f"⚠️  Error processing item: {e}")
+                continue
+        
+        return documents
     
-    Args:
-        use_mock: If True, use mock data. If False, attempt actual scraping
-    """
+    def load_all_data(self) -> List[Document]:
+        """Load all scraped data from JSON files"""
+        all_documents = []
+        
+        print("\n📂 Loading scraped data from JSON files...")
+        print("-" * 70)
+        
+        for filename, source_name in self.json_files.items():
+            filepath = self.data_dir / filename
+            
+            if not filepath.exists():
+                print(f"⚠️  Skipping {filename} (not found)")
+                continue
+            
+            print(f"\n📄 Loading: {filename}")
+            print(f"   Source: {source_name}")
+            
+            # Load JSON data
+            data = self.load_json_file(filepath)
+            
+            if not data:
+                print(f"   ⚠️  No data found in {filename}")
+                continue
+            
+            print(f"   ✅ Loaded {len(data)} entries")
+            
+            # Convert to documents
+            documents = self.convert_to_documents(data, source_name)
+            print(f"   ✅ Converted to {len(documents)} documents")
+            
+            all_documents.extend(documents)
+        
+        return all_documents
     
-    print("=" * 70)
-    print("VECTOR STORE POPULATION")
-    print("=" * 70)
+    def populate_vector_store(self, documents: List[Document]):
+        """Populate vector store with documents"""
+        if not documents:
+            print("\n❌ No documents to add to vector store")
+            return
+        
+        print("\n📚 Initializing vector store...")
+        vector_store = get_vector_store_manager()
+        
+        print(f"\n💾 Adding {len(documents)} documents to vector store...")
+        vector_store.add_documents(documents)
+        
+        # Show stats
+        stats = vector_store.get_stats()
+        print(f"\n✅ Vector store populated successfully!")
+        print(f"   Total documents: {stats.get('total_documents', len(documents))}")
+        print(f"   Index path: {stats.get('index_path', 'data/vector_store')}")
     
-    if use_mock:
-        print("\n📝 Using mock scraped data...")
-        documents = scrape_mock_data()
-    else:
-        print("\n🌐 Scraping fact-checking websites...")
-        print("⚠️ Real web scraping not implemented - using mock data")
-        documents = scrape_mock_data()
-        # TODO: Implement actual web scraping here
-        # documents = scrape_real_data()
-    
-    print(f"✅ Collected {len(documents)} documents")
-    
-    # Get vector store manager
-    print("\n📚 Initializing vector store...")
-    vector_store = get_vector_store_manager()
-    
-    # Add documents
-    print(f"\n💾 Adding {len(documents)} documents to vector store...")
-    vector_store.add_documents(documents)
-    
-    # Show stats
-    stats = vector_store.get_stats()
-    print(f"\n✅ Vector store populated successfully!")
-    print(f"   Total documents: {stats.get('total_documents', 'unknown')}")
-    print(f"   Index path: {stats.get('index_path')}")
-    
-    # Test search
-    print("\n🔍 Testing search functionality...")
-    test_queries = [
-        "COVID-19 vaccine safety",
-        "Earth age",
-        "Lightning strikes"
-    ]
-    
-    for query in test_queries:
-        print(f"\n  Query: '{query}'")
-        results = vector_store.search(query, top_k=2)
-        for idx, result in enumerate(results, 1):
-            print(f"    {idx}. {result.source_name} (score: {result.retrieval_score:.3f})")
-            print(f"       {result.snippet[:80]}...")
-    
-    print("\n" + "=" * 70)
-    print("✅ VECTOR STORE READY FOR USE")
-    print("=" * 70)
+    def test_search(self):
+        """Test vector store search functionality"""
+        print("\n🔍 Testing search functionality...")
+        print("-" * 70)
+        
+        vector_store = get_vector_store_manager()
+        
+        test_queries = [
+            "COVID-19 vaccine safety",
+            "financial fraud RBI",
+            "fake news video",
+            "health misinformation"
+        ]
+        
+        for query in test_queries:
+            print(f"\n  Query: '{query}'")
+            results = vector_store.search(query, top_k=3)
+            
+            if not results:
+                print("    No results found")
+                continue
+            
+            for idx, result in enumerate(results, 1):
+                print(f"    {idx}. {result.source_name}")
+                print(f"       Score: {result.retrieval_score:.3f}")
+                print(f"       Category: {result.metadata.get('category', 'N/A')}")
+                snippet = result.content[:100].replace('\n', ' ')
+                print(f"       Snippet: {snippet}...")
 
 
 def main():
     """Main function"""
     import argparse
     
-    parser = argparse.ArgumentParser(description="Populate vector store with fact-checking data")
+    parser = argparse.ArgumentParser(
+        description="Populate vector store with fact-checking data from scraped JSON files"
+    )
     parser.add_argument(
-        "--real",
+        "--test-only",
         action="store_true",
-        help="Use real web scraping (not implemented yet)"
+        help="Only test search functionality without repopulating"
+    )
+    parser.add_argument(
+        "--no-test",
+        action="store_true",
+        help="Skip search testing after population"
     )
     
     args = parser.parse_args()
     
-    scrape_and_populate(use_mock=not args.real)
+    print("=" * 70)
+    print("VECTOR STORE POPULATION - SCRAPED DATA")
+    print("=" * 70)
+    
+    populator = VectorStorePopulator()
+    
+    if args.test_only:
+        # Only test search
+        print("\n🧪 Running search tests only...")
+        populator.test_search()
+    else:
+        # Load and populate
+        documents = populator.load_all_data()
+        
+        if documents:
+            print("\n" + "=" * 70)
+            print(f"📊 SUMMARY: Loaded {len(documents)} total documents")
+            print("=" * 70)
+            
+            # Count by source
+            source_counts = {}
+            for doc in documents:
+                source = doc.metadata.get('source_name', 'Unknown')
+                source_counts[source] = source_counts.get(source, 0) + 1
+            
+            print("\n📈 Documents by source:")
+            for source, count in sorted(source_counts.items()):
+                print(f"   • {source}: {count} documents")
+            
+            # Count by category
+            category_counts = {}
+            for doc in documents:
+                category = doc.metadata.get('category', 'uncategorized')
+                category_counts[category] = category_counts.get(category, 0) + 1
+            
+            print("\n📋 Documents by category:")
+            for category, count in sorted(category_counts.items()):
+                print(f"   • {category}: {count} documents")
+            
+            # Populate vector store
+            populator.populate_vector_store(documents)
+            
+            # Test search unless disabled
+            if not args.no_test:
+                populator.test_search()
+        else:
+            print("\n❌ No documents loaded. Check JSON files in web_scrappers/")
+    
+    print("\n" + "=" * 70)
+    print("✅ VECTOR STORE READY FOR USE")
+    print("=" * 70)
+    print("\nUsage in code:")
+    print("  from backend.vector_store import get_vector_store_manager")
+    print("  vs = get_vector_store_manager()")
+    print("  results = vs.search('your query', top_k=5)")
+    print()
 
 
 if __name__ == "__main__":

@@ -7,8 +7,18 @@ from backend.retrieval_models import RetrievalConfig
 from dotenv import load_dotenv
 from typing import TypedDict, List, Optional, Dict, Any
 from langdetect import detect, LangDetectException
+from pydantic import BaseModel, Field
 
 load_dotenv()
+
+# === Verdict Model
+class TextVerdict(BaseModel):
+    """Final verdict for text-based fact-checking"""
+    verdict: str = Field(description="Overall verdict: LIKELY_TRUE, LIKELY_FALSE, MISLEADING, or INSUFFICIENT")
+    confidence: float = Field(description="Confidence score 0-1", ge=0, le=1)
+    reasoning: str = Field(description="Detailed reasoning for the verdict")
+    red_flags: List[str] = Field(description="List of red flags or concerns identified")
+    recommendation: str = Field(description="Actionable recommendation for the user")
 
 # === 1. Define the State Schema
 class GraphState(TypedDict):
@@ -20,6 +30,7 @@ class GraphState(TypedDict):
     fused_claims: FusedClaimList
     evidence_results: List[Dict[str, Any]]  # List of EvidenceResult dicts
     evidence_links: List[str]
+    verdict: Optional[TextVerdict]  # Final verdict
 
 # === 2. Define the model
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
@@ -125,10 +136,10 @@ def retrieval_tool(state: GraphState) -> dict:
     all_evidence_links = []
     
     for claim in fused_claims.fused_claims:
-        print(f"\n  🔍 Claim: {claim.statement}")
+        print(f"\n  🔍 Claim: {claim.fused_statement}")
         
         # Retrieve evidence
-        result = retriever.retrieve(claim.statement)
+        result = retriever.retrieve(claim.fused_statement)
         
         # Convert to dict for state storage
         result_dict = {
@@ -168,6 +179,77 @@ def retrieval_tool(state: GraphState) -> dict:
         "evidence_links": all_evidence_links
     }
 
+def generate_verdict(state: GraphState) -> dict:
+    """Generate final verdict based on claims and evidence"""
+    claims = state.get("fused_claims", state.get("claims"))
+    evidence_results = state.get("evidence_results", [])
+    original_content = state.get("content", "")
+    
+    print(f"\n⚖️ Generating final verdict...")
+    
+    # Format claims and evidence for the prompt
+    claims_text = "\n".join([
+        f"- {claim.fused_statement if hasattr(claim, 'fused_statement') else claim.statement}"
+        for claim in (claims.fused_claims if hasattr(claims, 'fused_claims') else claims.claims)
+    ])
+    
+    evidence_summary = []
+    for result in evidence_results:
+        claim_text = result['claim']
+        evidences_text = "\n  ".join([
+            f"• {e['source_name']}: {e['content'][:200]}..."
+            for e in result['evidences'][:2]  # Top 2 evidences per claim
+        ])
+        evidence_summary.append(f"Claim: {claim_text}\n  {evidences_text}")
+    
+    evidence_text = "\n\n".join(evidence_summary) if evidence_summary else "No evidence retrieved"
+    
+    prompt = f"""You are an expert fact-checker. Based on the original content, extracted claims, and retrieved evidence, provide a comprehensive verdict.
+
+ORIGINAL CONTENT:
+{original_content}
+
+EXTRACTED CLAIMS:
+{claims_text}
+
+EVIDENCE:
+{evidence_text}
+
+Provide your assessment with:
+1. **Overall Verdict**: Choose from:
+   - LIKELY_TRUE: Strong evidence supports the claims
+   - LIKELY_FALSE: Strong evidence contradicts the claims
+   - MISLEADING: Claims are partially true but lack context or are exaggerated
+   - INSUFFICIENT: Not enough evidence to make a determination
+
+2. **Confidence**: Score from 0 to 1 indicating how confident you are in the verdict
+
+3. **Reasoning**: Detailed explanation of your verdict based on the evidence
+
+4. **Red Flags**: List any concerning elements (e.g., lack of sources, contradictory evidence, logical fallacies)
+
+5. **Recommendation**: Actionable advice for the user (e.g., "Verify with additional sources", "Content appears credible")
+
+Be thorough, objective, and consider the quality and credibility of the evidence.
+"""
+    
+    try:
+        response = llm.with_structured_output(TextVerdict).invoke(prompt)
+        print(f"  ✅ Verdict: {response.verdict} (Confidence: {response.confidence:.1%})")
+        return {"verdict": response}
+    except Exception as e:
+        print(f"  ⚠️ Failed to generate verdict: {e}")
+        # Fallback verdict
+        return {
+            "verdict": TextVerdict(
+                verdict="INSUFFICIENT",
+                confidence=0.5,
+                reasoning="Unable to generate automated verdict due to processing error. Please review the evidence manually.",
+                red_flags=["Automated analysis incomplete"],
+                recommendation="Manually review the evidence and claims provided above."
+            )
+        }
+
 # === 4. Build the graph
 graph = StateGraph(GraphState)
 
@@ -178,6 +260,7 @@ graph.add_node("SkipTranslation", skip_translation)
 graph.add_node("ClaimExtraction", extract_claim)
 graph.add_node("Fusion", fusion_agent)
 graph.add_node("RetrieveEvidence", retrieval_tool)
+graph.add_node("GenerateVerdict", generate_verdict)  # Add verdict generation
 
 # Define conditional routing function
 def route_translation(state: GraphState) -> str:
@@ -200,7 +283,8 @@ graph.add_edge("Translation", "ClaimExtraction")
 graph.add_edge("SkipTranslation", "ClaimExtraction")
 graph.add_edge("ClaimExtraction", "Fusion")
 graph.add_edge("Fusion", "RetrieveEvidence")
-graph.add_edge("RetrieveEvidence", END)
+graph.add_edge("RetrieveEvidence", "GenerateVerdict")  # Changed: Route to verdict
+graph.add_edge("GenerateVerdict", END)  # Changed: End after verdict
 
 # Set entry point
 graph.set_entry_point("DetectLanguage")

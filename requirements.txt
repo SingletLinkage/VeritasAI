@@ -19,6 +19,7 @@ pydantic-settings>=2.0.0
 # Vector Store & Embeddings
 faiss-cpu>=1.7.4
 sentence-transformers>=2.2.0
+# langchain-huggingface>=0.1.0  # Optional: Removes deprecation warning (recommended)
 
 # LLM Utilities
 tenacity>=8.1.0
@@ -31,6 +32,13 @@ aiohttp>=3.8.0
 
 Pillow>=10.0.0
 exifread>=3.0.0
+
+# ============================================
+# Audio Processing
+# ============================================
+
+openai-whisper>=20231117
+torch>=2.0.0
 
 # ============================================
 # Web Interface

@@ -3,7 +3,10 @@ Reranker for Evidence Relevance Scoring
 Uses LLM-based reranking to score evidence relevance to claims
 """
 
-from typing import List
+from typing import List, Optional
+import time
+import hashlib
+import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -11,6 +14,11 @@ from dotenv import load_dotenv
 from backend.retrieval_models import Evidence
 
 load_dotenv()
+
+# Rate limiting configuration
+RERANK_DELAY = 1.5  # Delay between API calls in seconds
+MAX_RETRIES = 3  # Maximum retries for failed calls
+ENABLE_RERANKING = os.getenv("ENABLE_RERANKING", "true").lower() == "true"
 
 
 class RelevanceScore(BaseModel):
@@ -50,10 +58,31 @@ class EvidenceReranker:
     
     def __init__(self):
         """Initialize reranker with LLM"""
+        # Use Gemini 2.0 Flash Lite for higher rate limits and lower cost
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash-exp",
-            temperature=0.1
+            model="gemini-2.0-flash-lite",  # Lite version for higher quota
+            temperature=0.1,
+            max_retries=MAX_RETRIES,
+            timeout=30
         )
+        self.cache = {}  # Simple cache for rerank results
+        self.last_api_call = 0  # Track last API call time for rate limiting
+    
+    def _rate_limit(self):
+        """Enforce rate limiting between API calls"""
+        current_time = time.time()
+        time_since_last_call = current_time - self.last_api_call
+        
+        if time_since_last_call < RERANK_DELAY:
+            sleep_time = RERANK_DELAY - time_since_last_call
+            time.sleep(sleep_time)
+        
+        self.last_api_call = time.time()
+    
+    def _get_cache_key(self, claim: str, evidence_content: str) -> str:
+        """Generate cache key for claim-evidence pair"""
+        combined = f"{claim}|{evidence_content}"
+        return hashlib.md5(combined.encode()).hexdigest()
     
     def rerank(self, claim: str, evidences: List[Evidence], top_k: int = 3) -> List[Evidence]:
         """
@@ -70,11 +99,21 @@ class EvidenceReranker:
         if not evidences:
             return []
         
+        # Skip reranking if disabled or quota issues
+        if not ENABLE_RERANKING:
+            print("⚠️ Reranking disabled (set ENABLE_RERANKING=true to enable)")
+            evidences.sort(key=lambda x: x.retrieval_score, reverse=True)
+            return evidences[:top_k]
+        
         try:
             # Score each evidence
             scored_evidences = []
             
-            for evidence in evidences:
+            for i, evidence in enumerate(evidences):
+                # Apply rate limiting between calls
+                if i > 0:  # Skip delay for first call
+                    self._rate_limit()
+                
                 relevance = self._score_evidence(claim, evidence)
                 
                 # Update evidence with rerank score
@@ -86,6 +125,10 @@ class EvidenceReranker:
                 })
                 
                 scored_evidences.append(evidence)
+                
+                # Print progress
+                if (i + 1) % 3 == 0 or (i + 1) == len(evidences):
+                    print(f"  Reranked {i + 1}/{len(evidences)} evidences...")
             
             # Sort by rerank score (descending)
             scored_evidences.sort(key=lambda x: x.rerank_score or 0, reverse=True)
@@ -103,21 +146,32 @@ class EvidenceReranker:
     def _score_evidence(self, claim: str, evidence: Evidence) -> RelevanceScore:
         """Score a single evidence against the claim"""
         
+        # Check cache first
+        cache_key = self._get_cache_key(claim, evidence.content)
+        if cache_key in self.cache:
+            cached_score = self.cache[cache_key]
+            cached_score.evidence_id = evidence.id
+            return cached_score
+        
         prompt = f"""{RERANK_PROMPT}
 
 CLAIM: {claim}
 
 EVIDENCE:
 Source: {evidence.source_name} ({evidence.source_url})
-Content: {evidence.content}
+Content: {evidence.content[:500]}...
 
 Provide your relevance assessment:
 """
         
         try:
-            # Use structured output
+            # Use structured output with retry
             response = self.llm.with_structured_output(RelevanceScore).invoke(prompt)
             response.evidence_id = evidence.id
+            
+            # Cache the result
+            self.cache[cache_key] = response
+            
             return response
             
         except Exception as e:

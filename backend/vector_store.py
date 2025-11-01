@@ -10,7 +10,14 @@ import json
 from datetime import datetime
 
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+try:
+    # Try new import first (recommended)
+    from langchain_huggingface import HuggingFaceEmbeddings
+except ImportError:
+    # Fall back to old import if new package not installed
+    from langchain_community.embeddings import HuggingFaceEmbeddings
+    import warnings
+    warnings.filterwarnings('ignore', category=DeprecationWarning, module='langchain')
 from langchain.docstore.document import Document
 from dotenv import load_dotenv
 
