@@ -286,6 +286,63 @@ def render_verdict_card(verdict_result: Any):
         """, unsafe_allow_html=True)
 
 
+def render_simple_explanation(easy_explain: Dict[str, Any]):
+    """
+    Render simple, accessible explanation for older users
+    ("Explain Like I'm 60")
+    """
+    if not easy_explain:
+        return
+    
+    st.markdown("---")
+    st.markdown("### 👵👴 Simple Explanation (Easy to Understand)")
+    
+    # Greeting
+    greeting = easy_explain.get('greeting', 'Dear Uncle/Aunty')
+    st.markdown(f"**{greeting}**")
+    
+    # Simple Verdict (prominently displayed)
+    simple_verdict = easy_explain.get('simple_verdict', 'We checked this for you.')
+    st.markdown(f"""
+    <div class="verdict-card verdict-misleading">
+        <h3>📢 {simple_verdict}</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Explanation
+    explanation = easy_explain.get('explanation', '')
+    if explanation:
+        st.markdown("**📖 Simple Explanation:**")
+        st.markdown(f"""
+        <div class="info-box">
+            {explanation}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # What to do
+    what_to_do = easy_explain.get('what_to_do', '')
+    if what_to_do:
+        st.markdown("**📝 What Should You Do?**")
+        st.markdown(f"""
+        <div class="info-box">
+            {what_to_do}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Why it matters
+    why_matters = easy_explain.get('why_matters', '')
+    if why_matters:
+        st.markdown("**💚 Why This Matters:**")
+        st.markdown(f"""
+        <div class="info-box">
+            {why_matters}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Add an accessibility note
+    st.info("💡 **Tip**: You can share this simple explanation with your family members to help them understand.")
+
+
 def render_evidence(evidence_results: list):
     """Render evidence cards from evidence_results"""
     if not evidence_results:
@@ -698,6 +755,10 @@ def main():
                 if result.get('verdict'):
                     render_verdict_card(result['verdict'])
                 
+                # Show simple explanation if available
+                if result.get('easy_explain'):
+                    render_simple_explanation(result['easy_explain'])
+                
                 # Show text analysis
                 render_text_analysis(result)
                 
@@ -723,6 +784,10 @@ def main():
                     # Show verdict
                     if result.get('multimodal_verdict'):
                         render_verdict_card(result['multimodal_verdict'])
+                    
+                    # Show simple explanation if available
+                    if result.get('easy_explain'):
+                        render_simple_explanation(result['easy_explain'])
                     
                     # Tabs for detailed analysis
                     tab1, tab2, tab3 = st.tabs(["📝 Text Analysis", "🖼️ Image Analysis", "📚 Evidence"])
@@ -773,6 +838,10 @@ def main():
                             # Show verdict if available
                             if analysis.get('verdict'):
                                 render_verdict_card(analysis['verdict'])
+                            
+                            # Show simple explanation if available
+                            if analysis.get('easy_explain'):
+                                render_simple_explanation(analysis['easy_explain'])
                             
                             # Create a result dict compatible with render_text_analysis
                             text_result = {

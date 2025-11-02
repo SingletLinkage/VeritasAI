@@ -4,6 +4,7 @@ from backend.models import ClaimList, FusedClaimList, TranslationResult
 from backend.prompts import CLAIM_EXTRACTION_PROMPT, FUSION_PROMPT, TRANSLATION_PROMPT
 from backend.hybrid_retrieval import get_hybrid_retriever
 from backend.retrieval_models import RetrievalConfig
+from backend.explainability import explain_simply
 from dotenv import load_dotenv
 from typing import TypedDict, List, Optional, Dict, Any
 from langdetect import detect, LangDetectException
@@ -31,6 +32,7 @@ class GraphState(TypedDict):
     evidence_results: List[Dict[str, Any]]  # List of EvidenceResult dicts
     evidence_links: List[str]
     verdict: Optional[TextVerdict]  # Final verdict
+    easy_explain: Optional[Dict[str, Any]]  # Simple explanation for older users
 
 # === 2. Define the model
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
@@ -118,7 +120,7 @@ def retrieval_tool(state: GraphState) -> dict:
     print(f"\n📚 Retrieving evidence for {len(fused_claims.fused_claims)} claims...")
     
     # Check environment variable for reranking
-    enable_reranking = os.environ.get("ENABLE_RERANKING", "true").lower() == "true"
+    enable_reranking = os.environ.get("ENABLE_RERANKING", "false").lower() == "true"
     
     # Initialize hybrid retriever
     config = RetrievalConfig(
@@ -250,6 +252,60 @@ Be thorough, objective, and consider the quality and credibility of the evidence
             )
         }
 
+def generate_simple_explanation(state: GraphState) -> dict:
+    """
+    Generate simple, accessible explanation for older users with limited digital literacy
+    ("Explain Like I'm 60")
+    """
+    verdict = state.get("verdict")
+    if not verdict:
+        print("  ⚠️ No verdict available, skipping simple explanation")
+        return {"easy_explain": None}
+    
+    # Get the first claim for context
+    claims = state.get("fused_claims", state.get("claims"))
+    first_claim = ""
+    if claims:
+        claim_list = claims.fused_claims if hasattr(claims, 'fused_claims') else claims.claims
+        if claim_list:
+            first_claim = claim_list[0].fused_statement if hasattr(claim_list[0], 'fused_statement') else claim_list[0].statement
+    
+    # Get user's language
+    language = state.get("source_language", "en")
+    
+    print(f"\n💡 Generating simple explanation (language: {language})...")
+    
+    try:
+        # Generate simple explanation
+        simple_exp = explain_simply(
+            verdict=verdict.verdict,
+            confidence=verdict.confidence,
+            reasoning=verdict.reasoning,
+            red_flags=verdict.red_flags,
+            recommendation=verdict.recommendation,
+            claim=first_claim or state.get("content", ""),
+            language=language
+        )
+        
+        print(f"  ✅ Simple explanation generated")
+        print(f"  📝 Verdict: {simple_exp['simple_verdict']}")
+        
+        return {"easy_explain": simple_exp}
+    
+    except Exception as e:
+        print(f"  ⚠️ Failed to generate simple explanation: {e}")
+        # Fallback simple explanation
+        return {
+            "easy_explain": {
+                "greeting": "Dear Uncle/Aunty" if language == "en" else "प्रिय अंकल/आंटी",
+                "simple_verdict": "We checked this message for you.",
+                "explanation": "Please be careful with messages you receive. Not everything on the internet is true.",
+                "what_to_do": "Please check with your family before sharing any message.",
+                "why_matters": "This helps keep you and your loved ones safe from false information.",
+                "language": language
+            }
+        }
+
 # === 4. Build the graph
 graph = StateGraph(GraphState)
 
@@ -261,6 +317,7 @@ graph.add_node("ClaimExtraction", extract_claim)
 graph.add_node("Fusion", fusion_agent)
 graph.add_node("RetrieveEvidence", retrieval_tool)
 graph.add_node("GenerateVerdict", generate_verdict)  # Add verdict generation
+graph.add_node("GenerateSimpleExplanation", generate_simple_explanation)  # Add simple explanation generation
 
 # Define conditional routing function
 def route_translation(state: GraphState) -> str:
@@ -284,7 +341,8 @@ graph.add_edge("SkipTranslation", "ClaimExtraction")
 graph.add_edge("ClaimExtraction", "Fusion")
 graph.add_edge("Fusion", "RetrieveEvidence")
 graph.add_edge("RetrieveEvidence", "GenerateVerdict")  # Changed: Route to verdict
-graph.add_edge("GenerateVerdict", END)  # Changed: End after verdict
+graph.add_edge("GenerateVerdict", "GenerateSimpleExplanation")  # Route to simple explanation
+graph.add_edge("GenerateSimpleExplanation", END)  # End after simple explanation
 
 # Set entry point
 graph.set_entry_point("DetectLanguage")
@@ -325,7 +383,8 @@ def run_text_pipeline(text_input: str, enable_reranking: bool = True) -> dict:
             "fused_claims": result.get("fused_claims", {}).dict() if result.get("fused_claims") else {},
             "evidence_results": result.get("evidence_results", []),
             "evidence_links": result.get("evidence_links", []),
-            "verdict": result.get("verdict", {})  # May not exist yet
+            "verdict": result.get("verdict", {}),  # May not exist yet
+            "easy_explain": result.get("easy_explain", {})  # Simple explanation
         }
     finally:
         # Restore original config

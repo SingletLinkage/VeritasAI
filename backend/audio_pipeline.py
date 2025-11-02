@@ -228,7 +228,8 @@ def analyze_audio_file(
                 for claim in text_result.get("fused_claims", {}).fused_claims
             ] if text_result.get("fused_claims") else [],
             "evidence_results": text_result.get("evidence_results", []),
-            "verdict": text_result.get("verdict")  # Include verdict from text pipeline
+            "verdict": text_result.get("verdict"),  # Include verdict from text pipeline
+            "easy_explain": text_result.get("easy_explain")  # Include simple explanation
         }
     
     # Save to JSON if requested

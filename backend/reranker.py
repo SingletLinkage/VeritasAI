@@ -16,7 +16,7 @@ from backend.retrieval_models import Evidence
 load_dotenv()
 
 # Rate limiting configuration
-RERANK_DELAY = 1.5  # Delay between API calls in seconds
+RERANK_DELAY = 2.5  # Delay between API calls in seconds
 MAX_RETRIES = 3  # Maximum retries for failed calls
 ENABLE_RERANKING = os.getenv("ENABLE_RERANKING", "true").lower() == "true"
 

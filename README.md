@@ -52,12 +52,20 @@ A comprehensive AI-powered fact-checking system that analyzes **multimodal conte
 - **Context Analysis**: Relationship between claims and visuals
 - **Comprehensive Verdicts**: Holistic misinformation assessment
 
+### 👵👴 **Explainability & Accessibility ("Explain Like I'm 60")**
+- **Simple Language**: Grade-5 reading level explanations for all verdicts
+- **Respectful Tone**: Culturally appropriate greetings (Uncle/Aunty)
+- **Clear Actions**: Easy-to-follow steps for what to do
+- **Multi-language**: Explanations in user's native language
+- **Accessibility**: Makes fact-checking understandable for users 60+ with limited digital literacy
+
 ### 🌐 **Web Interface**
 - **Beautiful Streamlit UI**: Modern, responsive design
 - **Four Analysis Modes**: Text Only, Text + Image, Image Only, Audio Only
 - **Real-time Analysis**: Live progress indicators
 - **Export Options**: JSON and text report downloads
 - **Interactive Results**: Expandable sections and detailed breakdowns
+- **Dual Explanations**: Technical + Simple explanations for every verdict
 
 ---
 

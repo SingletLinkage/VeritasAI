@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 # Import from text pipeline
 from backend.models import ClaimList, FusedClaimList, VerdictResult
 from backend.prompts import CLAIM_EXTRACTION_PROMPT, FUSION_PROMPT
+from backend.explainability import explain_simply
 
 # Import from image pipeline
 from backend.models import ImageEvidence, ImageFusionResult
@@ -62,6 +63,7 @@ class MultimodalState(TypedDict):
     evidence_links: Optional[List[str]]
     verdict: Optional[Any]  # Text verdict from text pipeline
     multimodal_verdict: Optional[VerdictResult]
+    easy_explain: Optional[Dict[str, Any]]  # Simple explanation for older users
 
 
 # === 2. Define Models
@@ -171,6 +173,60 @@ def skip_image_processing(state: MultimodalState) -> dict:
     return {}
 
 
+def generate_multimodal_simple_explanation(state: MultimodalState) -> dict:
+    """
+    Generate simple explanation for multimodal verdict
+    ("Explain Like I'm 60")
+    """
+    verdict = state.get("multimodal_verdict")
+    if not verdict:
+        print("  ⚠️ No multimodal verdict available, skipping simple explanation")
+        return {"easy_explain": None}
+    
+    # Get the first claim for context
+    claims = state.get("fused_claims", state.get("claims"))
+    first_claim = ""
+    if claims:
+        claim_list = claims.fused_claims if hasattr(claims, 'fused_claims') else claims.claims
+        if claim_list:
+            first_claim = claim_list[0].fused_statement if hasattr(claim_list[0], 'fused_statement') else claim_list[0].statement
+    
+    # Get user's language
+    language = state.get("source_language", "en")
+    
+    print(f"\n💡 Generating simple explanation for multimodal analysis (language: {language})...")
+    
+    try:
+        # Generate simple explanation
+        simple_exp = explain_simply(
+            verdict=verdict.verdict,
+            confidence=verdict.confidence,
+            reasoning=verdict.reasoning,
+            red_flags=verdict.red_flags,
+            recommendation=verdict.recommendation,
+            claim=first_claim or state.get("content", ""),
+            language=language
+        )
+        
+        print(f"  ✅ Simple explanation generated")
+        
+        return {"easy_explain": simple_exp}
+    
+    except Exception as e:
+        print(f"  ⚠️ Failed to generate simple explanation: {e}")
+        # Fallback
+        return {
+            "easy_explain": {
+                "greeting": "Dear Uncle/Aunty" if language == "en" else "प्रिय अंकल/आंटी",
+                "simple_verdict": "We checked this message and image for you.",
+                "explanation": "Please be careful with messages and pictures you receive. Some may be edited or fake.",
+                "what_to_do": "Please check with your family before sharing.",
+                "why_matters": "This helps keep you safe from fake news and edited pictures.",
+                "language": language
+            }
+        }
+
+
 # === 5. Build Multimodal Graph
 graph = StateGraph(MultimodalState)
 
@@ -190,6 +246,7 @@ graph.add_node("SkipImage", skip_image_processing)
 
 # Fusion node
 graph.add_node("MultimodalFusion", multimodal_fusion_agent)
+graph.add_node("GenerateSimpleExplanation", generate_multimodal_simple_explanation)
 
 # Define conditional routing for translation
 def route_translation(state: MultimodalState) -> str:
@@ -228,8 +285,9 @@ graph.add_edge("ImageCaptioning", "DeepfakeDetection")
 graph.add_edge("DeepfakeDetection", "ConsolidateEvidence")
 graph.add_edge("ConsolidateEvidence", "MultimodalFusion")
 
-# Final
-graph.add_edge("MultimodalFusion", END)
+# Final - add simple explanation before ending
+graph.add_edge("MultimodalFusion", "GenerateSimpleExplanation")
+graph.add_edge("GenerateSimpleExplanation", END)
 
 # Set entry point
 graph.set_entry_point("DetectLanguage")
