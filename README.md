@@ -1,7 +1,6 @@
-# 🛡️ VeritasAI - Multimodal Misinformation Detection System
+# VeritasAI - Multimodal Misinformation Detection System
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![LangChain](https://img.shields.io/badge/LangChain-121212?logo=chainlink&logoColor=white)](https://langchain.com/)
 
@@ -46,6 +45,14 @@ A comprehensive AI-powered fact-checking system that analyzes **multimodal conte
 - **Deepfake Detection**: AI-generated content identification
 - **Manipulation Detection**: Edit analysis and authenticity scoring
 - **Visual Evidence**: Comparison with similar images
+- 
+### 🎥 **Video Analysis Pipeline**
+- **Media Separation**: Automatic audio and keyframe extraction
+- **Audio Transcription**: Whisper-based speech-to-text with timestamps
+- **Visual Analysis**: Keyframe captioning, entity recognition, deepfake detection
+- **Temporal Fusion**: Synchronized audio-visual evidence alignment
+- **Timeline-based Fact-Checking**: Claims mapped to video timestamps
+- **Multimodal Context**: Audio + visual + external evidence verification
 
 ### 🔀 **Multimodal Pipeline**
 - **Cross-Modal Verification**: Text-image consistency checking
@@ -61,7 +68,7 @@ A comprehensive AI-powered fact-checking system that analyzes **multimodal conte
 
 ### 🌐 **Web Interface**
 - **Beautiful Streamlit UI**: Modern, responsive design
-- **Four Analysis Modes**: Text Only, Text + Image, Image Only, Audio Only
+- **Multiple Analysis Modes**: Text, Text+Image, Audio, Video (coming soon)
 - **Real-time Analysis**: Live progress indicators
 - **Export Options**: JSON and text report downloads
 - **Interactive Results**: Expandable sections and detailed breakdowns
@@ -89,6 +96,7 @@ cd VeritasAI
 ```bash
 # Core dependencies
 pip install -r requirements.txt
+
 ```
 
 ### Step 3: Environment Setup
@@ -103,9 +111,6 @@ GOOGLE_API_KEY=your_google_gemini_api_key_here
 SERPAPI_API_KEY=your_serpapi_key_here
 ```
 
-**Getting API Keys:**
-- **Google Gemini API**: Get your free API key at [Google AI Studio](https://aistudio.google.com/app/apikey)
-- **SerpAPI**: Sign up for free tier at [SerpAPI](https://serpapi.com/) (100 searches/month free)
 
 ### Step 4: Populate Vector Store
 
@@ -160,11 +165,32 @@ This populates a local FAISS index with **real scraped fact-checking data** from
 
 **Technologies:** PIL, exifread, SerpAPI, LLM-based analysis
 
-### 4. **Multimodal Pipeline** (`backend/multimodal_pipeline.py`)
+### 4. **Video Pipeline** (`backend/video_pipeline.py`)
 
-Combines text and image pipelines with cross-modal verification.
+**Nodes:**
+- `MediaSeparation`: Extracts audio track and keyframes from video
+- `AudioTranscription`: Whisper-based transcription with timestamps
+- `VisualAnalysis`: Keyframe captioning, entity recognition, deepfake detection
+- `ClaimExtraction`: Extracts claims from audio and visual content
+- `MultimodalFusion`: Temporal alignment of audio-visual evidence (±5s windows)
+- `FactChecking`: Hybrid retrieval + LLM verification
+- `ReportGeneration`: Comprehensive timeline-based report with credibility scoring
 
-### 5. **Hybrid Evidence Retrieval** (`backend/hybrid_retrieval.py`)
+**Technologies:** MoviePy, OpenCV, Whisper, Gemini Vision, LangGraph
+
+**Features:**
+- Two keyframe extraction methods (uniform/scene-based)
+- Synchronized timestamp tracking
+- Temporal consistency scoring
+- Multimodal alignment metrics
+- Overall video credibility assessment (HIGH/MEDIUM/LOW)
+
+### 5. **Multimodal Pipeline** (`backend/multimodal_pipeline.py`)
+
+Combines text, image and video pipelines with cross-modal verification.
+
+
+### 6. **Hybrid Evidence Retrieval** (`backend/hybrid_retrieval.py`)
 
 **Components:**
 - **Vector Store Manager** (`vector_store.py`): FAISS-based local search
@@ -177,14 +203,15 @@ Combines text and image pipelines with cross-modal verification.
 - Metadata tracking (source, URL, scores)
 - Combines local knowledge base with real-time web search
 
-### 6. **Frontend** (`frontend/app.py`)
+### 7. **Frontend** (`frontend/app.py`)
 
 Beautiful Streamlit interface with:
-- Four analysis modes (Text Only, Text + Image, Image Only, Audio Only)
+- Multiple analysis modes (Text, Text+Image, Audio, Video - coming soon)
 - Real-time progress indicators
-- Audio file upload and transcription
+- Audio and video file upload support
 - Export functionality (JSON, TXT)
 - Responsive design with custom CSS styling
+- Simple explanations for users 60+ ("Explain Like I'm 60")
 
 ---
 
@@ -216,9 +243,11 @@ ihub/
 │   ├── exif_tool.py                  # EXIF metadata extraction
 │   ├── ocr_tool.py                   # OCR for images
 │   ├── rev_search_tool.py            # Reverse image search
+│   ├── explainability.py             # "Explain Like I'm 60" module
 │   │
 │   ├── populate_vector_store.py      # Data population script
 │   ├── visualize_pipeline.py         # Generate pipeline diagrams
+│   ├── video_pipeline_graph.mmd      # Video pipeline diagram 
 │   │
 │   ├── web_scrappers/                # Scraped fact-checking data
 │   │   ├── who_scrapper.py           # WHO scraper script
@@ -255,6 +284,12 @@ ihub/
 ### **Audio Processing**
 - **OpenAI Whisper**: Speech-to-text transcription
 - **PyTorch**: Deep learning framework for Whisper
+
+### **Video Processing** 
+- **MoviePy**: Video editing and processing
+- **OpenCV**: Computer vision and keyframe extraction
+- **NumPy**: Numerical operations for video analysis
+- **FFmpeg**: Media encoding/decoding
 
 ### **Natural Language Processing**
 - **langdetect**: Language identification
@@ -295,8 +330,7 @@ The app will open in your browser at `http://localhost:8501`
 - 🎤 **Audio Only**: Upload and transcribe audio files (MP3, WAV, M4A, OGG, FLAC)
 - 🖼️ **Image Only**: Analyze images for manipulation
 - 🔀 **Text + Image**: Combined multimodal analysis
-
----
+- 🎥 **Video Analysis**: Comprehensive video fact-checking
 
 ## 🎯 Key Capabilities
 

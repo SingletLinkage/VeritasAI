@@ -19,6 +19,7 @@ from backend.multimodal_pipeline import multimodal_pipeline
 from backend.text_pipeline import text_pipeline
 from backend.image_pipeline import image_pipeline
 from backend.audio_pipeline import analyze_audio_file, transcribe_only
+from backend.video_pipeline import analyze_video
 
 # Page configuration
 st.set_page_config(
@@ -591,7 +592,7 @@ def main():
         
         analysis_mode = st.radio(
             "Analysis Mode",
-            ["Text Only", "Text + Image", "Image Only", "Audio Only"],
+            ["Text Only", "Text + Image", "Image Only", "Audio Only", "Video"],
             help="Choose what type of content to analyze"
         )
         
@@ -604,6 +605,7 @@ def main():
         - 🌍 Multi-language support
         - 📝 Claim extraction
         - 🎤 Audio transcription (Whisper)
+        - 🎬 Video analysis (Audio + Visual)
         - 🖼️ Image authenticity verification
         - 📷 EXIF metadata analysis
         - 🔍 Evidence retrieval
@@ -628,8 +630,10 @@ def main():
     text_input = None
     image_file = None
     audio_file = None
+    video_file = None
     uploaded_image_path = None
     uploaded_audio_path = None
+    uploaded_video_path = None
     
     # Text input
     if analysis_mode in ["Text Only", "Text + Image"]:
@@ -644,62 +648,101 @@ def main():
     if analysis_mode == "Audio Only":
         st.info("👇 Upload an audio file below to transcribe and analyze for misinformation")
     
+    # Video-only mode message
+    if analysis_mode == "Video":
+        st.info("👇 Upload a video file to extract and analyze audio + visual content for misinformation")
+    
     # Media upload (Image/Video/Audio)
-    if analysis_mode in ["Text + Image", "Image Only", "Audio Only"]:
+    if analysis_mode in ["Text + Image", "Image Only", "Audio Only", "Video"]:
         st.markdown("### 📎 Upload Media")
         
-        upload_tab1, upload_tab2, upload_tab3 = st.tabs(["🖼️ Image", "🎥 Video", "🎵 Audio"])
-        
-        with upload_tab1:
-            image_file = st.file_uploader(
-                "Upload image",
-                type=['jpg', 'jpeg', 'png', 'webp'],
-                help="Upload an image to analyze for manipulation and verify against claims"
-            )
-            
-            if image_file:
-                col1, col2 = st.columns([1, 1])
-                
-                with col1:
-                    st.image(image_file, caption="Uploaded Image", use_container_width=True)
-                
-                with col2:
-                    st.success("✅ Image uploaded successfully")
-                    st.info(f"""
-                    **File:** {image_file.name}  
-                    **Size:** {image_file.size / 1024:.1f} KB  
-                    **Type:** {image_file.type}
-                    """)
-        
-        with upload_tab2:
+        # For Video mode, show only video tab prominently
+        if analysis_mode == "Video":
             video_file = st.file_uploader(
                 "Upload video",
-                type=['mp4', 'avi', 'mov', 'mkv'],
-                help="Upload a video (keyframe extraction coming soon)"
+                type=['mp4', 'avi', 'mov', 'mkv', 'webm'],
+                help="Upload a video for comprehensive multimodal fact-checking"
             )
             if video_file:
-                st.warning("⚠️ Video analysis coming soon! For now, extract a keyframe and upload as image.")
-        
-        with upload_tab3:
-            audio_file = st.file_uploader(
-                "Upload audio",
-                type=['mp3', 'wav', 'ogg', 'm4a', 'flac'],
-                help="Upload audio for transcription and fact-checking"
-            )
-            if audio_file:
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
-                    st.audio(audio_file, format=f'audio/{audio_file.type.split("/")[-1]}')
+                    st.video(video_file)
                 
                 with col2:
-                    st.success("✅ Audio uploaded successfully")
+                    st.success("✅ Video uploaded successfully")
                     st.info(f"""
-                    **File:** {audio_file.name}  
-                    **Size:** {audio_file.size / 1024:.1f} KB  
-                    **Type:** {audio_file.type}
+                    **File:** {video_file.name}  
+                    **Size:** {video_file.size / 1024 / 1024:.1f} MB  
+                    **Type:** {video_file.type}
                     """)
-                    st.caption("🎤 Will transcribe using OpenAI Whisper")
+                    st.caption("🎬 Will extract audio + keyframes for analysis")
+        else:
+            # For other modes, show tabs
+            upload_tab1, upload_tab2, upload_tab3 = st.tabs(["🖼️ Image", "🎥 Video", "🎵 Audio"])
+        
+            with upload_tab1:
+                image_file = st.file_uploader(
+                    "Upload image",
+                    type=['jpg', 'jpeg', 'png', 'webp'],
+                    help="Upload an image to analyze for manipulation and verify against claims"
+                )
+                
+                if image_file:
+                    col1, col2 = st.columns([1, 1])
+                    
+                    with col1:
+                        st.image(image_file, caption="Uploaded Image", use_container_width=True)
+                    
+                    with col2:
+                        st.success("✅ Image uploaded successfully")
+                        st.info(f"""
+                        **File:** {image_file.name}  
+                        **Size:** {image_file.size / 1024:.1f} KB  
+                        **Type:** {image_file.type}
+                        """)
+            
+            with upload_tab2:
+                video_file = st.file_uploader(
+                    "Upload video",
+                    type=['mp4', 'avi', 'mov', 'mkv', 'webm'],
+                    help="Upload a video for comprehensive multimodal fact-checking"
+                )
+                if video_file:
+                    col1, col2 = st.columns([1, 1])
+                    
+                    with col1:
+                        st.video(video_file)
+                    
+                    with col2:
+                        st.success("✅ Video uploaded successfully")
+                        st.info(f"""
+                        **File:** {video_file.name}  
+                        **Size:** {video_file.size / 1024 / 1024:.1f} MB  
+                        **Type:** {video_file.type}
+                        """)
+                        st.caption("🎬 Will extract audio + keyframes for analysis")
+            
+            with upload_tab3:
+                audio_file = st.file_uploader(
+                    "Upload audio",
+                    type=['mp3', 'wav', 'ogg', 'm4a', 'flac'],
+                    help="Upload audio for transcription and fact-checking"
+                )
+                if audio_file:
+                    col1, col2 = st.columns([1, 1])
+                    
+                    with col1:
+                        st.audio(audio_file, format=f'audio/{audio_file.type.split("/")[-1]}')
+                    
+                    with col2:
+                        st.success("✅ Audio uploaded successfully")
+                        st.info(f"""
+                        **File:** {audio_file.name}  
+                        **Size:** {audio_file.size / 1024:.1f} KB  
+                        **Type:** {audio_file.type}
+                        """)
+                        st.caption("🎤 Will transcribe using OpenAI Whisper")
     
     # Analyze button
     st.markdown("---")
@@ -724,6 +767,10 @@ def main():
             st.error("❌ Please upload an audio file to analyze")
             return
         
+        if analysis_mode == "Video" and not video_file:
+            st.error("❌ Please upload a video file to analyze")
+            return
+        
         if analysis_mode == "Text + Image":
             if not text_input:
                 st.error("❌ Please enter text to analyze")
@@ -742,6 +789,12 @@ def main():
             with tempfile.NamedTemporaryFile(delete=False, suffix=Path(audio_file.name).suffix) as tmp_file:
                 tmp_file.write(audio_file.getvalue())
                 uploaded_audio_path = tmp_file.name
+        
+        # Save uploaded video to temp file
+        if video_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(video_file.name).suffix) as tmp_file:
+                tmp_file.write(video_file.getvalue())
+                uploaded_video_path = tmp_file.name
         
         # Run analysis
         try:
@@ -872,6 +925,176 @@ def main():
                             # Show evidence
                             if analysis.get('evidence_results'):
                                 render_evidence(analysis['evidence_results'])
+            
+            elif analysis_mode == "Video":
+                if uploaded_video_path:
+                    # Process video
+                    with st.spinner("🎬 Processing video... This may take a few minutes..."):
+                        try:
+                            result = analyze_video(uploaded_video_path)
+                            
+                            if result.get("error"):
+                                st.error(f"❌ Video analysis failed: {result['error']}")
+                            else:
+                                # Show video metadata
+                                st.markdown("### 📹 Video Information")
+                                metadata = result.get('metadata', {})
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    st.metric("Duration", f"{metadata.get('duration_seconds', 0):.1f}s")
+                                with col2:
+                                    st.metric("Keyframes", metadata.get('num_keyframes', 0))
+                                with col3:
+                                    st.metric("Claims Extracted", len(result.get('claims', [])))
+                                
+                                # Show overall credibility
+                                st.markdown("### 🎯 Overall Credibility")
+                                credibility = result.get('credibility_label', 'UNKNOWN')
+                                credibility_score = result.get('credibility_score', 0.0)
+                                
+                                if credibility == "HIGH":
+                                    st.success(f"✅ **HIGH CREDIBILITY** ({credibility_score:.1%})")
+                                elif credibility == "MEDIUM":
+                                    st.warning(f"⚠️ **MEDIUM CREDIBILITY** ({credibility_score:.1%})")
+                                elif credibility == "LOW":
+                                    st.error(f"❌ **LOW CREDIBILITY** ({credibility_score:.1%})")
+                                else:
+                                    st.info(f"ℹ️ **{credibility}** ({credibility_score:.1%})")
+                                
+                                # Show simple explanation if available
+                                if result.get('easy_explain'):
+                                    render_simple_explanation(result['easy_explain'])
+                                
+                                # Tabs for detailed analysis
+                                tab1, tab2, tab3, tab4 = st.tabs([
+                                    "📋 Claims Timeline", 
+                                    "🎤 Audio Transcription", 
+                                    "🖼️ Visual Analysis",
+                                    "📚 Evidence"
+                                ])
+                                
+                                with tab1:
+                                    st.markdown("### 📋 Fact-Checked Claims")
+                                    claims = result.get('claims', [])
+                                    if claims:
+                                        for idx, claim in enumerate(claims, 1):
+                                            with st.expander(f"**Claim {idx}**: {claim.get('claim', 'No claim')}"):
+                                                # Timestamp
+                                                st.markdown(f"**⏱️ Timestamp**: {claim.get('timestamp', 'Unknown')}")
+                                                
+                                                # Source
+                                                source = claim.get('source', 'unknown')
+                                                if source == 'audio':
+                                                    st.markdown("**🎤 Source**: Audio (Speech)")
+                                                elif source == 'visual':
+                                                    st.markdown("**🖼️ Source**: Visual (Keyframes)")
+                                                else:
+                                                    st.markdown(f"**📍 Source**: {source}")
+                                                
+                                                # Verification result
+                                                verification = claim.get('verification', {})
+                                                verdict = verification.get('verdict', 'UNKNOWN')
+                                                confidence = verification.get('confidence', 0.0)
+                                                
+                                                if verdict == "TRUE":
+                                                    st.success(f"✅ **{verdict}** (Confidence: {confidence:.1%})")
+                                                elif verdict == "FALSE":
+                                                    st.error(f"❌ **{verdict}** (Confidence: {confidence:.1%})")
+                                                elif verdict == "MISLEADING":
+                                                    st.warning(f"⚠️ **{verdict}** (Confidence: {confidence:.1%})")
+                                                else:
+                                                    st.info(f"ℹ️ **{verdict}** (Confidence: {confidence:.1%})")
+                                                
+                                                # Reasoning
+                                                reasoning = verification.get('reasoning', 'No reasoning provided')
+                                                st.markdown(f"**💡 Reasoning**: {reasoning}")
+                                                
+                                                # Evidence
+                                                evidence = verification.get('evidence', [])
+                                                if evidence:
+                                                    st.markdown("**📚 Supporting Evidence**:")
+                                                    for ev_idx, ev in enumerate(evidence[:3], 1):
+                                                        st.markdown(f"{ev_idx}. {ev.get('title', 'Untitled')} - [{ev.get('source', 'Unknown')}]({ev.get('url', '#')})")
+                                    else:
+                                        st.info("No claims extracted from video")
+                                
+                                with tab2:
+                                    st.markdown("### 🎤 Audio Transcription")
+                                    transcription = result.get('transcription', '')
+                                    if transcription:
+                                        st.markdown(f"""
+                                        <div class="info-box">
+                                            {transcription}
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        st.info("No audio transcription available")
+                                    
+                                    # Audio segments
+                                    audio_segments = result.get('audio_segments', [])
+                                    if audio_segments:
+                                        st.markdown("### 📝 Timestamped Segments")
+                                        for seg in audio_segments:
+                                            st.markdown(f"""
+                                            **[{seg.get('start_time', 0):.1f}s - {seg.get('end_time', 0):.1f}s]**  
+                                            {seg.get('text', '')}
+                                            """)
+                                
+                                with tab3:
+                                    st.markdown("### 🖼️ Visual Analysis")
+                                    keyframes = result.get('keyframes', [])
+                                    if keyframes:
+                                        st.markdown(f"Analyzed **{len(keyframes)}** keyframes")
+                                        
+                                        # Display keyframes in grid
+                                        for idx, kf in enumerate(keyframes):
+                                            with st.expander(f"Keyframe at {kf.get('timestamp', 0):.1f}s"):
+                                                # Caption
+                                                st.markdown(f"**📝 Description**: {kf.get('caption', 'No caption')}")
+                                                
+                                                # Deepfake score
+                                                deepfake_score = kf.get('deepfake_score', 0.0)
+                                                if deepfake_score > 0.7:
+                                                    st.error(f"⚠️ **High Manipulation Risk**: {deepfake_score:.1%}")
+                                                elif deepfake_score > 0.4:
+                                                    st.warning(f"⚠️ **Medium Manipulation Risk**: {deepfake_score:.1%}")
+                                                else:
+                                                    st.success(f"✅ **Low Manipulation Risk**: {deepfake_score:.1%}")
+                                                
+                                                # Entities
+                                                entities = kf.get('entities', [])
+                                                if entities:
+                                                    st.markdown(f"**🏷️ Detected Entities**: {', '.join(entities)}")
+                                    else:
+                                        st.info("No keyframes analyzed")
+                                
+                                with tab4:
+                                    st.markdown("### 📚 Evidence Summary")
+                                    # Aggregate all evidence from claims
+                                    all_evidence = []
+                                    for claim in result.get('claims', []):
+                                        evidence = claim.get('verification', {}).get('evidence', [])
+                                        all_evidence.extend(evidence)
+                                    
+                                    if all_evidence:
+                                        # Remove duplicates based on URL
+                                        unique_evidence = {ev.get('url'): ev for ev in all_evidence}.values()
+                                        
+                                        for idx, ev in enumerate(unique_evidence, 1):
+                                            st.markdown(f"""
+                                            **{idx}. {ev.get('title', 'Untitled')}**  
+                                            📍 Source: {ev.get('source', 'Unknown')}  
+                                            🔗 [Read more]({ev.get('url', '#')})
+                                            """)
+                                            if ev.get('snippet'):
+                                                st.markdown(f"> {ev.get('snippet')}")
+                                            st.markdown("---")
+                                    else:
+                                        st.info("No evidence retrieved")
+                        
+                        except Exception as e:
+                            st.error(f"❌ Error processing video: {str(e)}")
+                            st.exception(e)
             
             # Download results
             st.markdown("---")
