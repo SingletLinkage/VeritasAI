@@ -23,7 +23,6 @@ A comprehensive AI-powered fact-checking system that analyzes **multimodal conte
 ![VeritasAI Architecture](pipeline.jpg)
 
 ---
-
 ## Key Features
 
 ### 🔤 **Text Analysis Pipeline**
@@ -45,7 +44,7 @@ A comprehensive AI-powered fact-checking system that analyzes **multimodal conte
 - **Deepfake Detection**: AI-generated content identification
 - **Manipulation Detection**: Edit analysis and authenticity scoring
 - **Visual Evidence**: Comparison with similar images
-- 
+  
 ### 🎥 **Video Analysis Pipeline**
 - **Media Separation**: Automatic audio and keyframe extraction
 - **Audio Transcription**: Whisper-based speech-to-text with timestamps
@@ -76,13 +75,8 @@ A comprehensive AI-powered fact-checking system that analyzes **multimodal conte
 
 ---
 
+
 ## Installation
-
-### Prerequisites
-
-- Python 3.10 or higher
-- pip package manager
-- Google Gemini API key ([Get one here](https://aistudio.google.com/app/apikey))
 
 ### Step 1: Clone Repository
 
@@ -111,107 +105,12 @@ GOOGLE_API_KEY=your_google_gemini_api_key_here
 SERPAPI_API_KEY=your_serpapi_key_here
 ```
 
-
 ### Step 4: Populate Vector Store
 
 ```bash
 cd backend
 python3 populate_vector_store.py
 ```
-
-This populates a local FAISS index with **real scraped fact-checking data** from:
-- **WHO (World Health Organization)** - 21 health myth-busting articles
-- **FactCheck.org** - 10 general fact-check articles
-- **PTI Fact Check** - 20 political and news fact-checks
-- **Reserve Bank of India** - 133 financial fraud alerts
-
----
-
-## 🔧 System Components
-
-### 1. **Text Pipeline** (`backend/text_pipeline.py`)
-
-**Nodes:**
-- `DetectLanguage`: Identifies input language using langdetect
-- `Translation`: Translates non-English text to English
-- `ClaimExtraction`: Extracts checkable claims using LLM
-- `Fusion`: Merges redundant/similar claims
-- `RetrieveEvidence`: Fetches supporting/contradicting evidence
-
-**Technologies:** LangGraph, Gemini 2.5 Flash, langdetect
-
-### 2. **Audio Pipeline** (`backend/audio_pipeline.py`)
-
-**Nodes:**
-- `TranscribeAudio`: Converts speech to text using OpenAI Whisper
-- `AnalyzeClaims`: Runs transcribed text through text pipeline
-
-**Technologies:** OpenAI Whisper, LangGraph, integrates with text pipeline
-
-**Features:**
-- Automatic language detection in audio
-- Support for multiple audio formats (mp3, wav, m4a, etc.)
-- Configurable Whisper model size (tiny to large)
-- Full claim extraction and evidence retrieval on transcribed content
-
-### 3. **Image Pipeline** (`backend/image_pipeline.py`)
-
-**Nodes:**
-- `EXIFExtraction`: Reads camera metadata
-- `ReverseImageSearch`: Finds similar images using real SerpAPI
-- `DeepfakeDetection`: Analyzes for AI-generated content
-- `ManipulationAnalysis`: Detects editing artifacts
-- `VerdictGeneration`: Aggregates findings
-
-**Technologies:** PIL, exifread, SerpAPI, LLM-based analysis
-
-### 4. **Video Pipeline** (`backend/video_pipeline.py`)
-
-**Nodes:**
-- `MediaSeparation`: Extracts audio track and keyframes from video
-- `AudioTranscription`: Whisper-based transcription with timestamps
-- `VisualAnalysis`: Keyframe captioning, entity recognition, deepfake detection
-- `ClaimExtraction`: Extracts claims from audio and visual content
-- `MultimodalFusion`: Temporal alignment of audio-visual evidence (±5s windows)
-- `FactChecking`: Hybrid retrieval + LLM verification
-- `ReportGeneration`: Comprehensive timeline-based report with credibility scoring
-
-**Technologies:** MoviePy, OpenCV, Whisper, Gemini Vision, LangGraph
-
-**Features:**
-- Two keyframe extraction methods (uniform/scene-based)
-- Synchronized timestamp tracking
-- Temporal consistency scoring
-- Multimodal alignment metrics
-- Overall video credibility assessment (HIGH/MEDIUM/LOW)
-
-### 5. **Multimodal Pipeline** (`backend/multimodal_pipeline.py`)
-
-Combines text, image and video pipelines with cross-modal verification.
-
-
-### 6. **Hybrid Evidence Retrieval** (`backend/hybrid_retrieval.py`)
-
-**Components:**
-- **Vector Store Manager** (`vector_store.py`): FAISS-based local search
-- **Web Search Agent** (`web_search.py`): Real SerpAPI integration for web evidence
-- **Evidence Reranker** (`reranker.py`): LLM-based relevance scoring
-
-**Features:**
-- Deduplication of evidence
-- Configurable search parameters
-- Metadata tracking (source, URL, scores)
-- Combines local knowledge base with real-time web search
-
-### 7. **Frontend** (`frontend/app.py`)
-
-Beautiful Streamlit interface with:
-- Multiple analysis modes (Text, Text+Image, Audio, Video - coming soon)
-- Real-time progress indicators
-- Audio and video file upload support
-- Export functionality (JSON, TXT)
-- Responsive design with custom CSS styling
-- Simple explanations for users 60+ ("Explain Like I'm 60")
 
 ---
 
@@ -267,52 +166,6 @@ ihub/
 ```
 ---
 
-## 🛠️ Technologies Used
-
-### **AI & Machine Learning**
-- **Google Gemini 2.5 Flash**: Primary LLM for analysis and generation
-- **LangChain**: LLM orchestration and chaining
-- **LangGraph**: State machine for pipeline workflows
-- **FAISS**: Vector similarity search
-- **Sentence Transformers**: Text embeddings (all-MiniLM-L6-v2)
-
-### **Computer Vision**
-- **PIL (Pillow)**: Image processing
-- **exifread**: EXIF metadata extraction
-- **LLM-based Vision**: Gemini Pro Vision for image analysis
-
-### **Audio Processing**
-- **OpenAI Whisper**: Speech-to-text transcription
-- **PyTorch**: Deep learning framework for Whisper
-
-### **Video Processing** 
-- **MoviePy**: Video editing and processing
-- **OpenCV**: Computer vision and keyframe extraction
-- **NumPy**: Numerical operations for video analysis
-- **FFmpeg**: Media encoding/decoding
-
-### **Natural Language Processing**
-- **langdetect**: Language identification
-- **Pydantic**: Data validation and serialization
-
-### **Web & APIs**
-- **Streamlit**: Web interface
-- **SerpAPI**: Real web search integration for evidence retrieval
-- **Google Generative AI**: Embeddings and chat
-
-### **Data & Storage**
-- **FAISS**: Vector database
-- **Python pickle**: Metadata persistence
-- **JSON**: Data interchange
-
-### **Data Sources** (for Vector Store)
-- **WHO Myth Busters**: Health misinformation database
-- **FactCheck.org**: General fact-checking articles
-- **PTI Fact Check**: Indian news and political fact-checks
-- **Reserve Bank of India**: Financial fraud and scam alerts
-
----
-
 ## 🚀 Running the Application
 
 ```bash
@@ -324,47 +177,6 @@ streamlit run frontend/app.py
 ```
 
 The app will open in your browser at `http://localhost:8501`
-
-**Features:**
-- 📝 **Text Only**: Analyze text claims
-- 🎤 **Audio Only**: Upload and transcribe audio files (MP3, WAV, M4A, OGG, FLAC)
-- 🖼️ **Image Only**: Analyze images for manipulation
-- 🔀 **Text + Image**: Combined multimodal analysis
-- 🎥 **Video Analysis**: Comprehensive video fact-checking
-
-## 🎯 Key Capabilities
-
-### Evidence Retrieval Strategy
-
-1. **Vector Store Search** (Local FAISS)
-   - Fast semantic similarity search
-   - 192 curated fact-checking documents
-   - Offline capability
-
-2. **Web Search** (SerpAPI)
-   - Real-time evidence from the web
-   - Access to latest information
-   - Broader coverage
-
-3. **Hybrid Approach**
-   - Combines both sources
-   - Deduplicates results
-   - Ranks by relevance
-
-4. **LLM Reranking**
-   - Uses Gemini 2.0 Flash Lite
-   - Contextual relevance scoring
-   - Improves evidence quality
-
-### Multi-language Support
-
-The system automatically detects and handles 90+ languages including:
-- English, Hindi, Spanish, French, German
-- Arabic, Chinese, Japanese, Korean
-- Portuguese, Russian, Italian, Dutch
-- And many more...
-
-Non-English content is automatically translated to English for claim analysis.
 
 --- 
 
