@@ -18,7 +18,7 @@ except ImportError:
     from langchain_community.embeddings import HuggingFaceEmbeddings
     import warnings
     warnings.filterwarnings('ignore', category=DeprecationWarning, module='langchain')
-from langchain.docstore.document import Document
+from langchain_community.docstore.document import Document
 from dotenv import load_dotenv
 
 from backend.retrieval_models import Evidence, generate_evidence_id
