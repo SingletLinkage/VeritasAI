@@ -9,7 +9,7 @@ A comprehensive AI-powered fact-checking system that analyzes **multimodal conte
 
 ## Overview
 
-**VeritasAI** is a state-of-the-art misinformation detection platform that combines multiple AI technologies to provide comprehensive fact-checking capabilities. The system can:
+**VeritasAI** is a misinformation detection platform that combines multiple AI technologies to provide comprehensive fact-checking capabilities. The system can:
 
 - ✅ **Analyze text claims** with multi-language support (90+ languages)
 - ✅ **Transcribe and verify audio content** using OpenAI Whisper
